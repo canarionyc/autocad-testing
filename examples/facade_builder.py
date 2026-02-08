@@ -1,7 +1,8 @@
+# facade_builder.py
 import argparse
 import math
-import matplotlib.pyplot as plt
-from pyautocad import Autocad, APoint
+# Import your new module
+import source.utils.cad_tools as cad_tools
 
 # --- Constants ---
 WIDTH = 20.0
@@ -11,112 +12,69 @@ X_INSET = 4 * math.sqrt(2)  # approx 5.657
 
 def get_window_rects():
     """
-    Generates a list of Closed Polylines (rectangles) for the windows.
-    Returns: List of [ (x1,y1), (x2,y2), (x3,y3), (x4,y4), (x1,y1) ]
+    Generates window coordinates based on updated sill heights:
+    Sills: 2.5, 5.5, 8.5, 11.5
+    Window Size: 1.0 x 1.0
     """
-    # 1. Window Dimensions
-    w_width = 1.0
-    w_height = 1.0
+    w_side = 1.0
 
-    # 2. Define Center X coordinates for the 3 columns
-    # Col 1: Center of left gable
-    x_col1 = 0.5 * X_INSET
-    # Col 2: Center of the whole building
-    x_col2 = 0.5 * WIDTH
-    # Col 3: Center of right gable (Symmetric to Col 1 from the right)
-    x_col3 = WIDTH - (0.5 * X_INSET)
+    # 1. Define Centers (Horizontal)
+    # Left Gable Center, Main Center, Right Gable Center
+    col_centers = [
+        0.5 * X_INSET,
+        0.5 * WIDTH,
+        WIDTH - (0.5 * X_INSET)
+    ]
 
-    col_centers = [x_col1, x_col2, x_col3]
-
-    # 3. Define Sill Heights (Y coordinates of the bottom edge)
-    sill_heights = [2.5, 5.0, 8.0, 11.0]
+    # 2. Define Sill Heights (Vertical)
+    # Updated values as per your request
+    sill_heights = [2.5, 5.5, 8.5, 11.5]
 
     windows = []
 
-    # 4. Generate Geometry
-    for x_center in col_centers:
+    # 3. Generate Rectangles
+    for x_c in col_centers:
         for y_sill in sill_heights:
-            # Calculate corners based on center X and sill Y
-            x_left = x_center - (w_width / 2)
-            x_right = x_center + (w_width / 2)
-            y_bottom = y_sill
-            y_top = y_sill + w_height
+            # Calculate geometric bounds
+            x_left = x_c - (w_side / 2)
+            x_right = x_c + (w_side / 2)
+            y_btm = y_sill
+            y_top = y_sill + w_side
 
-            # Define the 4 corners + closing point
+            # Create closed loop (5 points)
             rect = [
-                (x_left, y_bottom),  # Bottom Left
-                (x_right, y_bottom),  # Bottom Right
-                (x_right, y_top),  # Top Right
-                (x_left, y_top),  # Top Left
-                (x_left, y_bottom)  # Close Loop
+                (x_left, y_btm),
+                (x_right, y_btm),
+                (x_right, y_top),
+                (x_left, y_top),
+                (x_left, y_btm)
             ]
             windows.append(rect)
 
     return windows
 
 
-def plot_on_screen(polygons):
-    """Visualizes the windows using Matplotlib."""
-    print(f"Plotting {len(polygons)} windows...")
-
-    plt.figure(figsize=(10, 6))
-
-    # Draw Building Outline (Reference)
-    plt.plot([0, WIDTH, WIDTH, 0, 0], [0, 0, HEIGHT_EAVES, HEIGHT_EAVES, 0], 'k--', alpha=0.3)
-
-    for poly in polygons:
-        x_vals, y_vals = zip(*poly)
-        plt.fill(x_vals, y_vals, color='cyan', alpha=0.5, edgecolor='blue')
-
-    plt.title("Facade Window Layout")
-    plt.xlabel("Width (m)")
-    plt.ylabel("Height (m)")
-    plt.axis('equal')
-    plt.grid(True)
-    plt.show()
-
-
-def send_to_autocad(polygons):
-    """Draws the window rectangles in AutoCAD."""
-    try:
-        acad = Autocad(create_if_not_exists=True)
-        print(f"Connected to: {acad.doc.Name}")
-    except:
-        print("Error: AutoCAD not found.")
-        return
-
-    print("Drawing windows...")
-
-    for poly in polygons:
-        # Convert list of tuples to flat list of doubles [x1, y1, 0, x2, y2, 0...]
-        # AutoCAD LightweightPolyline requires this specific format
-        flat_coords = []
-        for x, y in poly[:-1]:  # Skip the last point (AutoCAD closes it automatically)
-            flat_coords.extend([x, y])
-
-        # Create Lightweight Polyline
-        # Note: pyautocad handles the array conversion automatically usually,
-        # but sometimes requires distinct points. Let's try AddLightWeightPolyline.
-
-        # Alternative: Draw 4 lines if Polyline fails in simple API
-        for i in range(len(poly) - 1):
-            p1 = APoint(poly[i][0], poly[i][1])
-            p2 = APoint(poly[i + 1][0], poly[i + 1][1])
-            acad.model.AddLine(p1, p2)
-
-    print(f"Done. {len(polygons)} windows added.")
-
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Facade Window Generator")
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--draw", action="store_true")
-    group.add_argument("--send", action="store_true")
+
+    group.add_argument("--draw", action="store_true", help="Preview in Matplotlib")
+    group.add_argument("--send", action="store_true", help="Send to AutoCAD")
+    group.add_argument("--clear", type=str, help="Delete all objects on this LAYER name")  # New flag!
 
     args = parser.parse_args()
-    geometry = get_window_rects()
 
-    if args.draw:
-        plot_on_screen(geometry)
+    # 1. Clear Layer Command
+    if args.clear:
+        cad_tools.clear_layer(args.clear)
+
+    # 2. Draw/Send Commands
+    elif args.draw:
+        window_geometry = get_window_rects()
+        cad_tools.plot_on_screen(window_geometry)
+
     elif args.send:
-        send_to_autocad(geometry)
+        # Optional: Auto-clear before sending?
+        # For safety, let's just send. You can run --clear manually if you want.
+        window_geometry = get_window_rects()
+        cad_tools.send_to_autocad(window_geometry, layer_name="A-GLAZ")

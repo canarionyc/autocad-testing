@@ -85,8 +85,8 @@ if __name__ == "__main__":
 
     if args.send:
         # Layer 1: Standard Windows
-        cad_tools.send_to_autocad(windows, layer_name="A-GLAZ")
+        # cad_tools.send_to_autocad(windows, layer_name="A-GLAZ")
         # Layer 2: Doors
-        cad_tools.send_to_autocad(doors, layer_name="A-DOOR")
+        # cad_tools.send_to_autocad(doors, layer_name="A-DOOR")
         # Layer 3: Stairwell Windows
         cad_tools.send_to_autocad(stair_glaz, layer_name="A-STAIR-GLAZ")
